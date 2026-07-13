@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة الكروت المتقدمة - Tailwind التفاعلية</title>
+  <!-- استدعاء مكتبة Tailwind CSS -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style>
+    /* أنيميشن مخصص لفتح وإغلاق الأكورديون بسلاسة */
+    .accordion-content {
+      transition: max-height 0.3s ease-in-out, padding 0.3s ease-in-out;
+      max-height: 0;
+      overflow: hidden;
+    }
+    .card.active .accordion-content {
+      max-height: 1200px; /* رقم افتراضي كافي لاستيعاب الحقول وقسم التعديل */
+    }
+  </style>
+</head>
+
+<body class="bg-slate-50 min-h-screen p-4 md:p-8 font-sans antialiased text-slate-800">
+
+  <div class="max-w-7xl mx-auto">
+    
+
+    <!-- مؤشر التحميل العصري -->
+    <div id="loading" class="text-center text-slate-600 my-16 font-semibold flex flex-col items-center justify-center gap-3">
+      <div class="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+      <span class="animate-pulse text-sm">جاري تحميل الطلبات...</span>
+    </div>
+
+    <!-- شبكة الكروت المتوافقة تماماً مع الموبايل والتابلت والشاشات الكبيرة -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-6" id="cards-container"></div>
+  </div>
+
+  <script>
+    // 1. رابط الـ Web App الخاص بك
+    const webAppUrl = 'https://script.google.com/macros/s/AKfycbxwOP9Ax2VH6vk5x91hpmvAZx9tq0RfYSfHFviMfMpxP1LoGfyO7wfkjAG_cUzS9hp4aw/exec';
+
+    // 2. لوحة التحكم بالأعمدة
+    const columnsConfig = [
+      { letter: 'J', label: 'الاسم', width: '30%', visible: true },
+      { letter: 'K', label: 'رقم', width: '30%', visible: true },
+      { letter: 'F', label: 'الحالة', width: '30%', visible: true },
+      { letter: 'I', label: 'العدد', width: '30%', visible: true },
+      { letter: 'G', label: 'السعر', width: '30%', visible: true },
+      { letter: 'M', label: 'الملاحظات', width: '30%', visible: true }
+    ];
+
+    let sheetsData = [];
+
+    function colLetterToIndex(letter) {
+      let column = 0;
+      let length = letter.length;
+      for (let i = 0; i < length; i++) {
+        column += (letter.charCodeAt(i) - 64) * Math.pow(26, length - i - 1);
+      }
+      return column - 1;
+    }
+
+    async function loadCards() {
+      try {
+        const response = await fetch(webAppUrl);
+        const result = await response.json();
+
+        if (result.rows && result.rows.length > 0) {
+          sheetsData = result;
+          renderCards(result);
+        } else {
+          document.getElementById('loading').innerHTML = '<span class="text-red-500">لا توجد بيانات متاحة لك اليوم.</span>';
+        }
+      } catch (error) {
+        console.error(error);
+        document.getElementById('loading').innerHTML = '<span class="text-red-500">حدث خطأ أثناء الاتصال بالخادم.</span>';
+      }
+    }
+
+    function renderCards(result) {
+      const container = document.getElementById('cards-container');
+      container.innerHTML = '';
+
+      result.rows.forEach((row, index) => {
+        const card = document.createElement('div');
+        // تحسين تصميم وحدود الكارت بألوان متناسقة مع التابلت والموبايل
+        card.className = 'card bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between overflow-hidden transition-all duration-300 hover:shadow-md hover:border-indigo-100';
+
+        const indexD = colLetterToIndex('D');
+        const indexN = colLetterToIndex('N');
+        const indexL = colLetterToIndex('L');
+
+        const codeD = row.data[indexD] !== undefined ? row.data[indexD].toString().trim() : '';
+        const codeN = row.data[indexN] !== undefined ? row.data[indexN].toString().trim() : '';
+        const codeL = row.data[indexL] !== undefined ? row.data[indexL].toString().trim() : '';
+
+        let headerParts = [];
+        if (codeD) headerParts.push(codeD);
+        if (codeN) headerParts.push(codeN);
+        if (codeL) headerParts.push(codeL);
+
+        const cardHeaderTitle = headerParts.length > 0 ? `كود: ${headerParts.join(' | ')}` : `صف #${row.rowNum}`;
+
+        // الهيدر التفاعلي الجديد بلون إنديغو ناعم
+        let cardHtml = `
+          <div class="card-header px-5 py-4 bg-white cursor-pointer flex justify-between items-center select-none hover:bg-slate-50 active:bg-slate-100/80 transition-colors" onclick="toggleCard(this)">
+            <span class="font-bold text-indigo-700 text-[15px] tracking-wide">${cardHeaderTitle}</span>
+            <span class="arrow text-[10px] text-slate-400 bg-slate-100 px-2 py-1 rounded-md transition-transform duration-300 transform">▼</span>
+          </div>
+          <div class="accordion-content px-5 bg-white transition-all">
+            <div class="py-1 flex-grow">
+        `;
+
+        // استعراض الحقول مع فحص خانة الرقم لربطها باتصال الهاتف مباشرة
+        columnsConfig.forEach(config => {
+          if (!config.visible) return;
+
+          const colIndex = colLetterToIndex(config.letter);
+          const cellValue = row.data[colIndex] !== undefined ? row.data[colIndex].toString().trim() : '';
+          const labelWidth = config.width || '35%';
+
+          if (cellValue === '') {
+            cardHtml += `
+              <div class="flex items-center py-2.5 text-sm border-b border-dashed border-slate-100">
+                <span class="font-medium text-slate-500 pl-2 shrink-0" style="width: ${labelWidth};">${config.label}:</span>
+                <span class="text-slate-300 italic flex-grow">-</span>
+              </div>`;
+          } else {
+            // التحقق من أن الحقل الحالي هو رقم الهاتف لتجهيزه للاتصال
+            let valueDisplayHtml = `<span class="text-slate-800 font-semibold flex-grow break-all">${cellValue}</span>`;
+            if (config.label === 'رقم') {
+              // تنظيف الرقم من أي مسافات زائدة وضمان قبوله للاتصال
+              const cleanNumber = cellValue.replace(/\s+/g, '');
+              valueDisplayHtml = `
+                <a href="tel:${cleanNumber}" class="text-indigo-600 font-bold hover:text-indigo-800 hover:underline flex items-center gap-1 flex-grow group transition-colors">
+                  <span>${cellValue}</span>
+                </a>`;
+            }
+
+            cardHtml += `
+              <div class="flex items-center py-2.5 text-sm border-b border-dashed border-slate-100">
+                <span class="font-medium text-slate-500 pl-2 shrink-0" style="width: ${labelWidth};">${config.label}:</span>
+                ${valueDisplayHtml}
+              </div>`;
+          }
+        });
+
+        cardHtml += '</div>';
+
+        const indexF = colLetterToIndex('F');
+        const indexQ = colLetterToIndex('Q');
+        const valF = row.data[indexF] || '';
+        const valQ = row.data[indexQ] || '';
+
+        const optionsF = ['استلام', 'تدوير', 'رفض رفض', 'جزئي'];
+        let selectOptions = `<option value="">اختر...</option>`;
+        optionsF.forEach(opt => {
+          selectOptions += `<option value="${opt}" ${valF === opt ? 'selected' : ''}>${opt}</option>`;
+        });
+
+        // تحسين تصميم قسم المدخلات والأزرار لتناسب اللمس على الشاشات الصغيرة
+        cardHtml += `
+            <div class="bg-slate-50/70 rounded-xl p-4 my-4 border border-slate-200/60 text-xs md:text-sm">
+              <div class="mb-3">
+                <label class="block font-bold text-slate-700 mb-1.5">تعديل عمود F (الحالة):</label>
+                <select id="select-F-${row.rowNum}" class="w-full p-2.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm shadow-inner transition-shadow">${selectOptions}</select>
+              </div>
+              <div class="mb-4">
+                <label class="block font-bold text-slate-700 mb-1.5">تعديل عمود Q (نص):</label>
+                <input type="text" id="input-Q-${row.rowNum}" value="${valQ}" placeholder="اكتب الملاحظات والتفاصيل..." class="w-full p-2.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm shadow-inner transition-shadow">
+              </div>
+              
+              <div class="grid grid-cols-2 gap-3">
+                <button class="w-full text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 font-bold py-3 px-4 rounded-xl transition-colors shadow-sm cursor-pointer text-sm" onclick="updateRow(${row.rowNum})">حفظ 💾</button>
+                <button class="w-full text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 font-bold py-3 px-4 rounded-xl transition-colors shadow-sm cursor-pointer text-sm flex items-center justify-center gap-1.5" onclick="copyForWhatsApp(${index})">نسخ 📋</button>
+              </div>
+              
+              <div class="text-center font-bold mt-3 text-xs" id="status-${row.rowNum}"></div>
+            </div>
+          </div>
+        `;
+
+        card.innerHTML = cardHtml;
+        container.appendChild(card);
+      });
+
+      document.getElementById('loading').style.display = 'none';
+    }
+
+    // إدارة الأكورديون ولف سهم الإشارة
+    function toggleCard(headerElement) {
+      const card = headerElement.parentElement;
+      const arrow = headerElement.querySelector('.arrow');
+      const content = card.querySelector('.accordion-content');
+      
+      card.classList.toggle('active');
+      
+      if (card.classList.contains('active')) {
+        arrow.style.transform = 'rotate(180deg)';
+        arrow.className = 'arrow text-[10px] text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md transition-all duration-300 transform';
+        content.style.paddingBottom = '1rem';
+      } else {
+        arrow.style.transform = 'rotate(0deg)';
+        arrow.className = 'arrow text-[10px] text-slate-400 bg-slate-100 px-2 py-1 rounded-md transition-all duration-300 transform';
+        content.style.paddingBottom = '0px';
+      }
+    }
+
+    async function updateRow(rowNum) {
+      const selectF = document.getElementById(`select-F-${rowNum}`).value;
+      const inputQ = document.getElementById(`input-Q-${rowNum}`).value;
+      const statusDiv = document.getElementById(`status-${rowNum}`);
+
+      statusDiv.className = "text-center font-bold mt-3 text-xs text-indigo-600 animate-pulse";
+      statusDiv.innerText = 'جاري إرسال التحديثات...';
+
+      try {
+        const urlF = `${webAppUrl}?action=update&row=${rowNum}&col=F&val=${encodeURIComponent(selectF)}`;
+        await fetch(urlF);
+
+        const urlQ = `${webAppUrl}?action=update&row=${rowNum}&col=Q&val=${encodeURIComponent(inputQ)}`;
+        const resQ = await fetch(urlQ);
+        const resJson = await resQ.json();
+
+        if (resJson.status === "success") {
+          statusDiv.className = "text-center font-bold mt-3 text-xs text-emerald-600";
+          statusDiv.innerText = 'تم التحديث بنجاح! ✓';
+          loadCards(); 
+        } else {
+          throw new Error();
+        }
+      } catch (error) {
+        statusDiv.className = "text-center font-bold mt-3 text-xs text-rose-600";
+        statusDiv.innerText = 'فشلت العملية، يرجى المحاولة لاحقاً.';
+      }
+    }
+
+    function copyForWhatsApp(rowIndex) {
+      const row = sheetsData.rows[rowIndex];
+      const indexD = colLetterToIndex('D');
+      const codeD = row.data[indexD] !== undefined ? row.data[indexD].toString().trim() : '';
+      const headerIdentifier = codeD ? codeD : `بدون كود (صف #${row.rowNum})`;
+
+      let textMessage = `*رقم الطلب: ${headerIdentifier}*\n`;
+      textMessage += `-------------------------\n`;
+
+      columnsConfig.forEach(config => {
+        if (!config.visible) return;
+        const colIndex = colLetterToIndex(config.letter);
+        const val = row.data[colIndex] !== undefined ? row.data[colIndex].toString().trim() : '';
+        textMessage += `*${config.label}:* ${val}\n`;
+      });
+
+      navigator.clipboard.writeText(textMessage).then(() => {
+        alert(`تم نسخ بيانات الكود [${headerIdentifier}] بنجاح للواتساب!`);
+      }).catch(err => {
+        alert('فشل نسخ النص المنسق تلقائياً.');
+      });
+    }
+
+    loadCards();
+  </script>
+</body>
+
+</html>
