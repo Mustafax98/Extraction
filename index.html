@@ -4,261 +4,624 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>لوحة الكروت المتقدمة - Tailwind التفاعلية</title>
-  <!-- استدعاء مكتبة Tailwind CSS -->
-  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <title>نظام أتمتة وتجميع ملفات الإكسيل الذكي</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- SheetJS (XLSX) CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- Google Fonts Cairo -->
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
-    /* أنيميشن مخصص لفتح وإغلاق الأكورديون بسلاسة */
-    .accordion-content {
-      transition: max-height 0.3s ease-in-out, padding 0.3s ease-in-out;
-      max-height: 0;
-      overflow: hidden;
-    }
-    .card.active .accordion-content {
-      max-height: 1200px; /* رقم افتراضي كافي لاستيعاب الحقول وقسم التعديل */
+    body {
+      font-family: 'Cairo', sans-serif;
     }
   </style>
 </head>
 
-<body class="bg-slate-50 min-h-screen p-4 md:p-8 font-sans antialiased text-slate-800">
+<body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
 
-  <div class="max-w-7xl mx-auto">
-    
-
-    <!-- مؤشر التحميل العصري -->
-    <div id="loading" class="text-center text-slate-600 my-16 font-semibold flex flex-col items-center justify-center gap-3">
-      <div class="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-      <span class="animate-pulse text-sm">جاري تحميل الطلبات...</span>
+  <!-- Navigation Tabs -->
+  <nav class="bg-white shadow border-b">
+    <div class="container mx-auto px-6 flex gap-4">
+      <button onclick="switchTab('settings')" id="btn-settings"
+        class="py-3 px-4 font-semibold text-gray-500 border-b-2 border-transparent transition">القالب الرئيسي</button>
+      <button onclick="switchTab('templates')" id="btn-templates"
+        class="py-3 px-4 font-semibold border-b-2 border-blue-600 text-blue-600 transition">القوالب</button>
+      <button onclick="switchTab('process')" id="btn-process"
+        class="py-3 px-4 font-semibold text-gray-500 border-b-2 border-transparent transition">ارفاق الملفات</button>
+      <button onclick="switchTab('preview')" id="btn-preview"
+        class="py-3 px-4 font-semibold text-gray-500 border-b-2 border-transparent transition">البيانات المجمعه</button>
     </div>
+  </nav>
 
-    <!-- شبكة الكروت المتوافقة تماماً مع الموبايل والتابلت والشاشات الكبيرة -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-6" id="cards-container"></div>
-  </div>
+  <!-- Main Container -->
+  <main class="container mx-auto px-6 py-8 flex-grow">
 
+    <!-- TAB 0: Master Schema Settings -->
+    <section id="tab-settings" class="space-y-6 hidden">
+      <div class="bg-white p-6 rounded-xl shadow-sm border space-y-4">
+        <h2 class="text-xl font-bold text-blue-600">تخصيص هيكل وأعمدة الشيت الرئيسي الموحد</h2>
+        <p class="text-sm text-gray-600">يمكنك هنا إضافة أعمدة جديدة، تعديل أسمائها، أو حذفها أو إعادة ترتيبها (بما في
+          ذلك عمود مصدر الملف).</p>
+
+        <div class="flex gap-2">
+          <input type="text" id="new-col-name" placeholder="اسم العمود الجديد (مثال: ملاحظات، رقم الهاتف...)"
+            class="flex-grow border rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500">
+          <button onclick="addMasterColumn()"
+            class="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 transition">إضافة
+            عمود</button>
+        </div>
+
+        <div class="border rounded-lg overflow-hidden">
+          <table class="w-full text-right border-collapse">
+            <thead class="bg-gray-100 border-b">
+              <tr>
+                <th class="p-3 border-l">مفتاح النظام (Key)</th>
+                <th class="p-3 border-l">عنوان العمود في الشيت المجمع</th>
+                <th class="p-3 text-center">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="master-schema-tbody" class="divide-y"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 1: Templates Management -->
+    <section id="tab-templates" class="space-y-6 hidden">
+      <div class="bg-white p-6 rounded-xl shadow-sm border">
+        <input type="hidden" id="editing-tpl-key" value="">
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-medium mb-1">اسم القالب (نفس اسم ملف الإكسيل تماماً بدون امتداد)</label>
+            <input type="text" id="tpl-name" placeholder="اسم القالب"
+              class="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">اختر الملف (Excel / CSV)</label>
+            <input type="file" id="sample-file" accept=".xlsx, .xls, .csv"
+              class="w-full border rounded-lg px-2 py-1.5 bg-gray-50">
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="loadSampleFile()"
+            class="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 transition">تحليل الملف
+            وقراءة الأعمدة</button>
+          <button id="cancel-edit-btn" onclick="cancelEditTemplate()"
+            class="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-semibold hover:bg-gray-400 transition hidden">إلغاء
+            التعديل</button>
+        </div>
+      </div>
+
+      <!-- Configuration Area -->
+      <div id="template-config-area" class="bg-white p-6 rounded-xl shadow-sm border hidden space-y-4">
+        <h3 class="text-lg font-bold">ضبط إعدادات القالب</h3>
+        <div>
+          <label class="block text-sm font-medium mb-1">رقم صف بدء البيانات الحقيقية (يبدأ العد من 0 لتخطي الترويسة
+            العلوية)</label>
+          <input type="number" id="start-row" value="0" class="w-32 border rounded-lg px-3 py-2">
+        </div>
+        <div>
+          <h4 class="font-semibold mb-2">مطابقة الأعمدة:</h4>
+          <div id="mapping-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+        </div>
+        <button onclick="saveTemplate()"
+          class="bg-green-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-green-700 transition">حفظ القالب في
+          المتصفح</button>
+      </div>
+
+      <!-- Saved Templates List -->
+      <div class="bg-white p-6 rounded-xl shadow-sm border">
+        <h3 class="text-lg font-bold mb-4">القوالب المحفوظة حالياً</h3>
+        <div id="saved-templates-list" class="space-y-2">
+          <p class="text-gray-500 text-sm">لا توجد قوالب محفوظة .</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: Process & Consolidate -->
+    <section id="tab-process" class="space-y-6">
+      <div class="bg-white p-6 rounded-xl shadow-sm border">
+        <div class="mb-4">
+          <input type="file" id="batch-files" multiple accept=".xlsx, .xls, .csv"
+            class="w-full border rounded-lg p-3 bg-gray-50">
+        </div>
+        <button onclick="processBatchFiles()"
+          class="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 transition">بدء
+          التجميع التلقائي</button>
+      </div>
+
+      <div id="process-logs"
+        class="bg-gray-900 text-green-400 p-4 rounded-xl font-mono text-sm h-48 overflow-y-auto hidden"></div>
+    </section>
+
+    <!-- TAB 3: Preview & Export -->
+    <section id="tab-preview" class="space-y-6 hidden">
+      <div class="bg-white p-6 rounded-xl shadow-sm border flex justify-between items-center">
+        <div>
+          <p class="text-sm text-gray-500" id="record-count">إجمالي الصفوف المجمعة: 0</p>
+        </div>
+        <button onclick="exportMasterFile()"
+          class="bg-green-600 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-green-700 transition flex items-center gap-2">
+          تحميل الملف المجمع
+        </button>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border overflow-x-auto">
+        <table class="w-full text-right border-collapse" id="master-table">
+          <thead id="master-thead-preview" class="bg-gray-100 border-b"></thead>
+          <tbody id="master-tbody" class="divide-y">
+            <tr>
+              <td class="p-4 text-center text-gray-500">لا توجد بيانات مجمعة حتى الآن.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- JavaScript Logic -->
   <script>
-    // 1. رابط الـ Web App الخاص بك
-    const webAppUrl = 'https://script.google.com/macros/s/AKfycbxwOP9Ax2VH6vk5x91hpmvAZx9tq0RfYSfHFviMfMpxP1LoGfyO7wfkjAG_cUzS9hp4aw/exec';
-
-    // 2. لوحة التحكم بالأعمدة
-    const columnsConfig = [
-      { letter: 'J', label: 'الاسم', width: '30%', visible: true },
-      { letter: 'K', label: 'رقم', width: '30%', visible: true },
-      { letter: 'F', label: 'الحالة', width: '30%', visible: true },
-      { letter: 'I', label: 'العدد', width: '30%', visible: true },
-      { letter: 'G', label: 'السعر', width: '30%', visible: true },
-      { letter: 'M', label: 'الملاحظات', width: '30%', visible: true }
+    let masterColumns = JSON.parse(localStorage.getItem('excel_master_schema')) || [
+      { key: 'customer', label: 'اسم العميل' },
+      { key: 'tracking', label: 'رقم الشحنة' },
+      { key: 'amount', label: 'المبلغ' },
+      { key: 'city', label: 'المدينة' },
+      { key: 'source', label: 'مصدر الملف' }
     ];
 
-    let sheetsData = [];
+    let activeSampleData = null;
+    let templates = JSON.parse(localStorage.getItem('excel_templates') || '{}');
+    let masterData = [];
 
-    function colLetterToIndex(letter) {
-      let column = 0;
-      let length = letter.length;
-      for (let i = 0; i < length; i++) {
-        column += (letter.charCodeAt(i) - 64) * Math.pow(26, length - i - 1);
-      }
-      return column - 1;
+    function switchTab(tabId) {
+      ['settings', 'templates', 'process', 'preview'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.add('hidden');
+        document.getElementById(`btn-${t}`).classList.remove('border-blue-600', 'text-blue-600');
+        document.getElementById(`btn-${t}`).classList.add('text-gray-500', 'border-transparent');
+      });
+      document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+      document.getElementById(`btn-${tabId}`).classList.add('border-blue-600', 'text-blue-600');
+      document.getElementById(`btn-${tabId}`).classList.remove('text-gray-500', 'border-transparent');
+
+      if (tabId === 'settings') renderMasterSchemaSettings();
+      if (tabId === 'templates') renderTemplatesList();
+      if (tabId === 'preview') updateMasterPreview();
     }
 
-    async function loadCards() {
-      try {
-        const response = await fetch(webAppUrl);
-        const result = await response.json();
+    function renderMasterSchemaSettings() {
+      const tbody = document.getElementById('master-schema-tbody');
+      if (masterColumns.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-gray-500">لا توجد أعمدة معرّفة.</td></tr>`;
+        return;
+      }
 
-        if (result.rows && result.rows.length > 0) {
-          sheetsData = result;
-          renderCards(result);
+      let html = '';
+      masterColumns.forEach((col, index) => {
+        html += `
+                    <tr class="hover:bg-gray-50">
+                        <td class="p-3 border-l font-mono text-xs text-gray-500">${col.key}</td>
+                        <td class="p-3 border-l">
+                            <input type="text" value="${col.label}" onchange="updateColumnLabel(${index}, this.value)" class="border rounded px-2 py-1 w-full outline-none focus:ring-1 focus:ring-blue-500">
+                        </td>
+                        <td class="p-3 text-center flex justify-center gap-2">
+                            <button onclick="moveColumn(${index}, -1)" class="text-gray-600 hover:text-blue-600 px-2 border rounded" ${index === 0 ? 'disabled opacity-30' : ''}>⬆️</button>
+                            <button onclick="moveColumn(${index}, 1)" class="text-gray-600 hover:text-blue-600 px-2 border rounded" ${index === masterColumns.length - 1 ? 'disabled opacity-30' : ''}>⬇️</button>
+                            <button onclick="deleteMasterColumn(${index})" class="text-red-600 hover:text-red-800 px-2 border rounded">حذف</button>
+                        </td>
+                    </tr>
+                `;
+      });
+      tbody.innerHTML = html;
+    }
+
+    function addMasterColumn() {
+      const input = document.getElementById('new-col-name');
+      const label = input.value.trim();
+      if (!label) {
+        alert('الرجاء إدخال اسم العمود.');
+        return;
+      }
+      const key = 'col_' + Date.now();
+      masterColumns.push({ key, label });
+      localStorage.setItem('excel_master_schema', JSON.stringify(masterColumns));
+      input.value = '';
+      renderMasterSchemaSettings();
+    }
+
+    function updateColumnLabel(index, newLabel) {
+      masterColumns[index].label = newLabel.trim();
+      localStorage.setItem('excel_master_schema', JSON.stringify(masterColumns));
+    }
+
+    function moveColumn(index, direction) {
+      const target = index + direction;
+      if (target < 0 || target >= masterColumns.length) return;
+      const temp = masterColumns[index];
+      masterColumns[index] = masterColumns[target];
+      masterColumns[target] = temp;
+      localStorage.setItem('excel_master_schema', JSON.stringify(masterColumns));
+      renderMasterSchemaSettings();
+    }
+
+    function deleteMasterColumn(index) {
+      if (masterColumns.length <= 1) {
+        alert('يجب أن يحتوي الشيت على عمود واحد على الأقل.');
+        return;
+      }
+      masterColumns.splice(index, 1);
+      localStorage.setItem('excel_master_schema', JSON.stringify(masterColumns));
+      renderMasterSchemaSettings();
+    }
+
+    function getColumnLetter(colIndex) {
+      let letter = '';
+      let temp = colIndex + 1;
+      while (temp > 0) {
+        let remainder = (temp - 1) % 26;
+        letter = String.fromCharCode(65 + remainder) + letter;
+        temp = Math.floor((temp - 1) / 26);
+      }
+      return letter;
+    }
+
+    function loadSampleFile() {
+      const fileInput = document.getElementById('sample-file');
+      const tplName = document.getElementById('tpl-name').value.trim();
+      const editingKey = document.getElementById('editing-tpl-key').value;
+
+      if (!tplName) {
+        alert('يرجى إدخال اسم القالب أولاً.');
+        return;
+      }
+
+      if (fileInput.files.length === 0) {
+        if (editingKey && templates[editingKey]) {
+          activeSampleData = [[]];
+          buildMappingUI(activeSampleData, templates[editingKey].mapping);
+          document.getElementById('template-config-area').classList.remove('hidden');
+          return;
         } else {
-          document.getElementById('loading').innerHTML = '<span class="text-red-500">لا توجد بيانات متاحة لك اليوم.</span>';
+          alert('يرجى اختيار ملف عينة لتحليل الأعمدة.');
+          return;
         }
-      } catch (error) {
-        console.error(error);
-        document.getElementById('loading').innerHTML = '<span class="text-red-500">حدث خطأ أثناء الاتصال بالخادم.</span>';
       }
+
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+
+      reader.onload = function (e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array', cellStyles: false, cellFormulas: false });
+
+          let targetSheetName = workbook.SheetNames[0];
+          let worksheet = workbook.Sheets[targetSheetName];
+          activeSampleData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+          if (!activeSampleData || activeSampleData.length === 0) {
+            alert('الملف فارغ أو لا يحتوي على بيانات!');
+            return;
+          }
+
+          let existingMapping = null;
+          if (editingKey && templates[editingKey]) {
+            existingMapping = templates[editingKey].mapping;
+          }
+
+          buildMappingUI(activeSampleData, existingMapping);
+          document.getElementById('template-config-area').classList.remove('hidden');
+        } catch (err) {
+          console.error(err);
+          alert('حدث خطأ أثناء قراءة الملف، تأكد أنه ملف إكسيل صالح.');
+        }
+      };
+      reader.readAsArrayBuffer(file);
     }
 
-    function renderCards(result) {
-      const container = document.getElementById('cards-container');
+    function buildMappingUI(rows, existingMapping = null) {
+      const container = document.getElementById('mapping-container');
       container.innerHTML = '';
 
-      result.rows.forEach((row, index) => {
-        const card = document.createElement('div');
-        // تحسين تصميم وحدود الكارت بألوان متناسقة مع التابلت والموبايل
-        card.className = 'card bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between overflow-hidden transition-all duration-300 hover:shadow-md hover:border-indigo-100';
+      let maxCols = 15;
+      if (rows && rows.length > 0) {
+        rows.slice(0, 5).forEach(r => {
+          if (r.length > maxCols) maxCols = r.length;
+        });
+      }
 
-        const indexD = colLetterToIndex('D');
-        const indexN = colLetterToIndex('N');
-        const indexL = colLetterToIndex('L');
+      masterColumns.forEach(mCol => {
+        // عمود المصدر هو عمود نظام يُعبأ تلقائياً باسم الملف، ولا يتم ربطه بخلايا الشيت الداخلية
+        if (mCol.key === 'source') return;
 
-        const codeD = row.data[indexD] !== undefined ? row.data[indexD].toString().trim() : '';
-        const codeN = row.data[indexN] !== undefined ? row.data[indexN].toString().trim() : '';
-        const codeL = row.data[indexL] !== undefined ? row.data[indexL].toString().trim() : '';
+        let div = document.createElement('div');
+        div.className = 'border p-3 rounded-lg bg-gray-50';
 
-        let headerParts = [];
-        if (codeD) headerParts.push(codeD);
-        if (codeN) headerParts.push(codeN);
-        if (codeL) headerParts.push(codeL);
+        let selectOptions = `<option value="">-- ترك فارغاً (بدون ربط) --</option>`;
 
-        const cardHeaderTitle = headerParts.length > 0 ? `كود: ${headerParts.join(' | ')}` : `صف #${row.rowNum}`;
-
-        // الهيدر التفاعلي الجديد بلون إنديغو ناعم
-        let cardHtml = `
-          <div class="card-header px-5 py-4 bg-white cursor-pointer flex justify-between items-center select-none hover:bg-slate-50 active:bg-slate-100/80 transition-colors" onclick="toggleCard(this)">
-            <span class="font-bold text-indigo-700 text-[15px] tracking-wide">${cardHeaderTitle}</span>
-            <span class="arrow text-[10px] text-slate-400 bg-slate-100 px-2 py-1 rounded-md transition-transform duration-300 transform">▼</span>
-          </div>
-          <div class="accordion-content px-5 bg-white transition-all">
-            <div class="py-1 flex-grow">
-        `;
-
-        // استعراض الحقول مع فحص خانة الرقم لربطها باتصال الهاتف مباشرة
-        columnsConfig.forEach(config => {
-          if (!config.visible) return;
-
-          const colIndex = colLetterToIndex(config.letter);
-          const cellValue = row.data[colIndex] !== undefined ? row.data[colIndex].toString().trim() : '';
-          const labelWidth = config.width || '35%';
-
-          if (cellValue === '') {
-            cardHtml += `
-              <div class="flex items-center py-2.5 text-sm border-b border-dashed border-slate-100">
-                <span class="font-medium text-slate-500 pl-2 shrink-0" style="width: ${labelWidth};">${config.label}:</span>
-                <span class="text-slate-300 italic flex-grow">-</span>
-              </div>`;
-          } else {
-            // التحقق من أن الحقل الحالي هو رقم الهاتف لتجهيزه للاتصال
-            let valueDisplayHtml = `<span class="text-slate-800 font-semibold flex-grow break-all">${cellValue}</span>`;
-            if (config.label === 'رقم') {
-              // تنظيف الرقم من أي مسافات زائدة وضمان قبوله للاتصال
-              const cleanNumber = cellValue.replace(/\s+/g, '');
-              valueDisplayHtml = `
-                <a href="tel:${cleanNumber}" class="text-indigo-600 font-bold hover:text-indigo-800 hover:underline flex items-center gap-1 flex-grow group transition-colors">
-                  <span>${cellValue}</span>
-                </a>`;
+        for (let i = 0; i < maxCols; i++) {
+          let colLetter = getColumnLetter(i);
+          let headerText = '';
+          if (rows && rows.length > 0) {
+            for (let rIdx = 0; rIdx < Math.min(rows.length, 3); rIdx++) {
+              if (rows[rIdx] && rows[rIdx][i] !== undefined && rows[rIdx][i] !== '') {
+                headerText = rows[rIdx][i];
+                break;
+              }
             }
+          }
+          selectOptions += `<option value="${i}">عمود ${colLetter} ${headerText ? '(' + headerText + ')' : ''}</option>`;
+        }
 
-            cardHtml += `
-              <div class="flex items-center py-2.5 text-sm border-b border-dashed border-slate-100">
-                <span class="font-medium text-slate-500 pl-2 shrink-0" style="width: ${labelWidth};">${config.label}:</span>
-                ${valueDisplayHtml}
-              </div>`;
+        div.innerHTML = `
+                    <label class="block text-xs font-bold text-gray-700 mb-1">عمود الشيت الرئيسي: <span class="text-blue-600">${mCol.label}</span></label>
+                    <select data-master-key="${mCol.key}" class="mapping-select w-full border rounded p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                        ${selectOptions}
+                    </select>
+                `;
+        container.appendChild(div);
+      });
+
+      if (existingMapping) {
+        const selects = container.querySelectorAll('.mapping-select');
+        selects.forEach(sel => {
+          let mKey = sel.getAttribute('data-master-key');
+          if (existingMapping[mKey] !== undefined) {
+            sel.value = existingMapping[mKey];
           }
         });
-
-        cardHtml += '</div>';
-
-        const indexF = colLetterToIndex('F');
-        const indexQ = colLetterToIndex('Q');
-        const valF = row.data[indexF] || '';
-        const valQ = row.data[indexQ] || '';
-
-        const optionsF = ['استلام', 'تدوير', 'رفض رفض', 'جزئي'];
-        let selectOptions = `<option value="">اختر...</option>`;
-        optionsF.forEach(opt => {
-          selectOptions += `<option value="${opt}" ${valF === opt ? 'selected' : ''}>${opt}</option>`;
-        });
-
-        // تحسين تصميم قسم المدخلات والأزرار لتناسب اللمس على الشاشات الصغيرة
-        cardHtml += `
-            <div class="bg-slate-50/70 rounded-xl p-4 my-4 border border-slate-200/60 text-xs md:text-sm">
-              <div class="mb-3">
-                <label class="block font-bold text-slate-700 mb-1.5">تعديل عمود F (الحالة):</label>
-                <select id="select-F-${row.rowNum}" class="w-full p-2.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm shadow-inner transition-shadow">${selectOptions}</select>
-              </div>
-              <div class="mb-4">
-                <label class="block font-bold text-slate-700 mb-1.5">تعديل عمود Q (نص):</label>
-                <input type="text" id="input-Q-${row.rowNum}" value="${valQ}" placeholder="اكتب الملاحظات والتفاصيل..." class="w-full p-2.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm shadow-inner transition-shadow">
-              </div>
-              
-              <div class="grid grid-cols-2 gap-3">
-                <button class="w-full text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 font-bold py-3 px-4 rounded-xl transition-colors shadow-sm cursor-pointer text-sm" onclick="updateRow(${row.rowNum})">حفظ 💾</button>
-                <button class="w-full text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 font-bold py-3 px-4 rounded-xl transition-colors shadow-sm cursor-pointer text-sm flex items-center justify-center gap-1.5" onclick="copyForWhatsApp(${index})">نسخ 📋</button>
-              </div>
-              
-              <div class="text-center font-bold mt-3 text-xs" id="status-${row.rowNum}"></div>
-            </div>
-          </div>
-        `;
-
-        card.innerHTML = cardHtml;
-        container.appendChild(card);
-      });
-
-      document.getElementById('loading').style.display = 'none';
-    }
-
-    // إدارة الأكورديون ولف سهم الإشارة
-    function toggleCard(headerElement) {
-      const card = headerElement.parentElement;
-      const arrow = headerElement.querySelector('.arrow');
-      const content = card.querySelector('.accordion-content');
-      
-      card.classList.toggle('active');
-      
-      if (card.classList.contains('active')) {
-        arrow.style.transform = 'rotate(180deg)';
-        arrow.className = 'arrow text-[10px] text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md transition-all duration-300 transform';
-        content.style.paddingBottom = '1rem';
-      } else {
-        arrow.style.transform = 'rotate(0deg)';
-        arrow.className = 'arrow text-[10px] text-slate-400 bg-slate-100 px-2 py-1 rounded-md transition-all duration-300 transform';
-        content.style.paddingBottom = '0px';
       }
     }
 
-    async function updateRow(rowNum) {
-      const selectF = document.getElementById(`select-F-${rowNum}`).value;
-      const inputQ = document.getElementById(`input-Q-${rowNum}`).value;
-      const statusDiv = document.getElementById(`status-${rowNum}`);
+    function saveTemplate() {
+      const tplName = document.getElementById('tpl-name').value.trim();
+      const startRow = parseInt(document.getElementById('start-row').value) || 0;
+      const editingKey = document.getElementById('editing-tpl-key').value;
+      const selects = document.querySelectorAll('.mapping-select');
 
-      statusDiv.className = "text-center font-bold mt-3 text-xs text-indigo-600 animate-pulse";
-      statusDiv.innerText = 'جاري إرسال التحديثات...';
+      if (!tplName) {
+        alert('الرجاء إدخال اسم القالب.');
+        return;
+      }
 
-      try {
-        const urlF = `${webAppUrl}?action=update&row=${rowNum}&col=F&val=${encodeURIComponent(selectF)}`;
-        await fetch(urlF);
-
-        const urlQ = `${webAppUrl}?action=update&row=${rowNum}&col=Q&val=${encodeURIComponent(inputQ)}`;
-        const resQ = await fetch(urlQ);
-        const resJson = await resQ.json();
-
-        if (resJson.status === "success") {
-          statusDiv.className = "text-center font-bold mt-3 text-xs text-emerald-600";
-          statusDiv.innerText = 'تم التحديث بنجاح! ✓';
-          loadCards(); 
-        } else {
-          throw new Error();
+      let mapping = {};
+      selects.forEach(sel => {
+        let mKey = sel.getAttribute('data-master-key');
+        let val = sel.value;
+        if (val !== "") {
+          mapping[mKey] = parseInt(val);
         }
-      } catch (error) {
-        statusDiv.className = "text-center font-bold mt-3 text-xs text-rose-600";
-        statusDiv.innerText = 'فشلت العملية، يرجى المحاولة لاحقاً.';
+      });
+
+      if (editingKey && editingKey !== tplName) {
+        delete templates[editingKey];
+      }
+
+      templates[tplName] = { startRow, mapping };
+      localStorage.setItem('excel_templates', JSON.stringify(templates));
+
+      alert('تم حفظ القالب بنجاح!');
+      cancelEditTemplate();
+      renderTemplatesList();
+    }
+
+    function editTemplate(key) {
+      const tpl = templates[key];
+      if (!tpl) return;
+
+      document.getElementById('editing-tpl-key').value = key;
+      document.getElementById('tpl-name').value = key;
+      document.getElementById('start-row').value = tpl.startRow;
+      document.getElementById('template-form-title').innerText = `تعديل قالب: ${key}`;
+      document.getElementById('cancel-edit-btn').classList.remove('hidden');
+
+      buildMappingUI(null, tpl.mapping);
+      document.getElementById('template-config-area').classList.remove('hidden');
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function cancelEditTemplate() {
+      document.getElementById('editing-tpl-key').value = '';
+      document.getElementById('tpl-name').value = '';
+      document.getElementById('start-row').value = 0;
+      document.getElementById('sample-file').value = '';
+      document.getElementById('template-form-title').innerText = 'يجب ان يكون الاسم مطابق لاسم الملف';
+      document.getElementById('cancel-edit-btn').classList.add('hidden');
+      document.getElementById('template-config-area').classList.add('hidden');
+    }
+
+    function renderTemplatesList() {
+      const listDiv = document.getElementById('saved-templates-list');
+      const keys = Object.keys(templates);
+
+      if (keys.length === 0) {
+        listDiv.innerHTML = `<p class="text-gray-500 text-sm">لا توجد قوالب محفوظة بعد.</p>`;
+        return;
+      }
+
+      let html = '';
+      keys.forEach(key => {
+        let mappingDetails = Object.entries(templates[key].mapping)
+          .map(([k, v]) => {
+            let mColObj = masterColumns.find(mc => mc.key === k);
+            return `${mColObj ? mColObj.label : k}: عمود ${getColumnLetter(v)}`;
+          })
+          .join(' | ');
+
+        html += `
+                    <div class="flex justify-between items-center p-3 border rounded-lg bg-gray-50">
+                        <div>
+                            <span class="font-bold text-blue-600">${key}</span>
+                            <span class="text-xs text-gray-500 block">بدء البيانات من صف: ${templates[key].startRow} | التوجيه: [${mappingDetails || 'لا يوجد ربط'}]</span>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="editTemplate('${key}')" class="text-blue-600 hover:text-blue-800 text-sm font-semibold px-3 py-1 border rounded bg-white">تعديل</button>
+                            <button onclick="deleteTemplate('${key}')" class="text-red-600 hover:text-red-800 text-sm font-semibold px-3 py-1 border rounded bg-white">حذف</button>
+                        </div>
+                    </div>
+                `;
+      });
+      listDiv.innerHTML = html;
+    }
+
+    function deleteTemplate(key) {
+      if (confirm(`هل أنت متأكد من حذف القالب "${key}"؟`)) {
+        delete templates[key];
+        localStorage.setItem('excel_templates', JSON.stringify(templates));
+        renderTemplatesList();
       }
     }
 
-    function copyForWhatsApp(rowIndex) {
-      const row = sheetsData.rows[rowIndex];
-      const indexD = colLetterToIndex('D');
-      const codeD = row.data[indexD] !== undefined ? row.data[indexD].toString().trim() : '';
-      const headerIdentifier = codeD ? codeD : `بدون كود (صف #${row.rowNum})`;
+    async function processBatchFiles() {
+      const fileInput = document.getElementById('batch-files');
+      const logBox = document.getElementById('process-logs');
 
-      let textMessage = `*رقم الطلب: ${headerIdentifier}*\n`;
-      textMessage += `-------------------------\n`;
+      if (fileInput.files.length === 0) {
+        alert('الرجاء اختيار ملف واحد على الأقل.');
+        return;
+      }
 
-      columnsConfig.forEach(config => {
-        if (!config.visible) return;
-        const colIndex = colLetterToIndex(config.letter);
-        const val = row.data[colIndex] !== undefined ? row.data[colIndex].toString().trim() : '';
-        textMessage += `*${config.label}:* ${val}\n`;
-      });
+      logBox.classList.remove('hidden');
+      logBox.innerHTML = '> بدأ...\n';
+      masterData = [];
 
-      navigator.clipboard.writeText(textMessage).then(() => {
-        alert(`تم نسخ بيانات الكود [${headerIdentifier}] بنجاح للواتساب!`);
-      }).catch(err => {
-        alert('فشل نسخ النص المنسق تلقائياً.');
+      for (let file of fileInput.files) {
+        let fullFileName = file.name;
+        let fileNameWithoutExt = fullFileName.substring(0, fullFileName.lastIndexOf('.')) || fullFileName;
+
+        logBox.innerHTML += `> عدد الاسطر: ${fullFileName}\n`;
+
+        let matchedTplKey = Object.keys(templates).find(k => k === fileNameWithoutExt);
+
+        if (!matchedTplKey) {
+          logBox.innerHTML += `> ⚠️ تحذير: لا يوجد قالب محفوظ بهذا الاسم "${fileNameWithoutExt}"، تم التخطي.\n`;
+          continue;
+        }
+
+        let tpl = templates[matchedTplKey];
+        let targetSheet = await readFileAsync(file);
+        let rows = XLSX.utils.sheet_to_json(targetSheet, { header: 1 });
+
+        let validRowsCountForFile = 0;
+        for (let i = tpl.startRow; i < rows.length; i++) {
+          let r = rows[i];
+          if (!r || r.length === 0) continue;
+
+          let rowObject = {};
+          let actualDataCount = 0; // عد الأعمدة الحقيقية (باستثناء المصدر)
+
+          masterColumns.forEach(mCol => {
+            if (mCol.key === 'source' || mCol.label.includes('ملف') || mCol.key.includes('source')) {
+              rowObject[mCol.key] = fileNameWithoutExt;
+              return; // لا نحتسب عمود المصدر ضمن البيانات الحقيقية للتشغيل
+            }
+
+            let mappedColIndex = tpl.mapping[mCol.key];
+            if (mappedColIndex !== undefined && r[mappedColIndex] !== undefined && String(r[mappedColIndex]).trim() !== '') {
+              rowObject[mCol.key] = r[mappedColIndex];
+              actualDataCount++; // زيادة العداد فقط لو العمود الحقيقي به بيانات
+            } else {
+              rowObject[mCol.key] = '';
+            }
+          });
+
+          // الشرط الصارم: يجب أن يحتوي الصف على بيانات في 3 أعمدة حقيقية على الأقل لتخطي الصفوف الفارغة
+          if (actualDataCount >= 3) {
+            masterData.push(rowObject);
+            validRowsCountForFile++;
+          }
+        }
+        logBox.innerHTML += `> ${validRowsCountForFile} \n`;
+      }
+
+      logBox.innerHTML += `> 🎉 تم تجميع: ${masterData.length}\n`;
+      updateMasterPreview();
+      switchTab('preview');
+    }
+
+    function readFileAsync(file) {
+      return new Promise((resolve, reject) => {
+        let reader = new FileReader();
+        reader.onerror = reject;
+        reader.onload = function (e) {
+          try {
+            let data = new Uint8Array(e.target.result);
+            let workbook = XLSX.read(data, { type: 'array' });
+
+            let targetSheet = workbook.Sheets[workbook.SheetNames[0]];
+            let checkData = XLSX.utils.sheet_to_json(targetSheet, { header: 1 });
+
+            if (!checkData || checkData.length === 0 || checkData.every(row => row.length === 0)) {
+              for (let sName of workbook.SheetNames) {
+                let tempSheet = workbook.Sheets[sName];
+                let tempParsed = XLSX.utils.sheet_to_json(tempSheet, { header: 1 });
+                if (tempParsed && tempParsed.length > 0 && !tempParsed.every(row => row.length === 0)) {
+                  targetSheet = tempSheet;
+                  break;
+                }
+              }
+            }
+
+            resolve(targetSheet);
+          } catch (err) {
+            reject(err);
+          }
+        };
+        reader.readAsArrayBuffer(file);
       });
     }
 
-    loadCards();
+    function updateMasterPreview() {
+      const thead = document.getElementById('master-thead-preview');
+      const tbody = document.getElementById('master-tbody');
+      document.getElementById('record-count').innerText = `إجمالي الصفوف المجمعة: ${masterData.length}`;
+
+      let headerHtml = `<tr>`;
+      masterColumns.forEach(mc => {
+        headerHtml += `<th class="p-3 border-l">${mc.label}</th>`;
+      });
+      headerHtml += `</tr>`;
+      thead.innerHTML = headerHtml;
+
+      if (masterData.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="${masterColumns.length}" class="p-4 text-center text-gray-500">لا توجد بيانات مطابقة حتى الآن.</td></tr>`;
+        return;
+      }
+
+      let html = '';
+      masterData.forEach(row => {
+        html += `<tr class="hover:bg-gray-50">`;
+        masterColumns.forEach(mc => {
+          html += `<td class="p-3 border-l">${row[mc.key] !== undefined ? row[mc.key] : ''}</td>`;
+        });
+        html += `</tr>`;
+      });
+      tbody.innerHTML = html;
+    }
+
+    function exportMasterFile() {
+      if (masterData.length === 0) {
+        alert('لا توجد بيانات لتصديرها.');
+        return;
+      }
+
+      const exportData = masterData.map(item => {
+        let exportObj = {};
+        masterColumns.forEach(mc => {
+          exportObj[mc.label] = item[mc.key] !== undefined ? item[mc.key] : '';
+        });
+        return exportObj;
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "الشيت الرئيسي");
+
+      XLSX.writeFile(workbook, "Master_Consolidated.xlsx");
+    }
   </script>
 </body>
 
