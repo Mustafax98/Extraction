@@ -15,6 +15,19 @@
     body {
       font-family: 'Cairo', sans-serif;
     }
+    .draggable-row {
+      cursor: grab;
+    }
+    .draggable-row:active {
+      cursor: grabbing;
+    }
+    .dragging {
+      opacity: 0.4;
+      background: #eff6ff !important;
+    }
+    .drag-over {
+      border-top: 2px dashed #2563eb !important;
+    }
   </style>
 </head>
 
@@ -24,7 +37,7 @@
   <nav class="bg-white shadow border-b">
     <div class="container mx-auto px-6 flex gap-4">
       <button onclick="switchTab('settings')" id="btn-settings"
-        class="py-3 px-4 font-semibold text-gray-500 border-b-2 border-transparent transition">القالب الرئيسي</button>
+      class="py-3 px-4 font-semibold text-gray-500 border-b-2 border-transparent transition">القالب الرئيسي</button>
       <button onclick="switchTab('templates')" id="btn-templates"
         class="py-3 px-4 font-semibold border-b-2 border-blue-600 text-blue-600 transition">القوالب</button>
       <button onclick="switchTab('process')" id="btn-process"
@@ -41,11 +54,10 @@
     <section id="tab-settings" class="space-y-6 hidden">
       <div class="bg-white p-6 rounded-xl shadow-sm border space-y-4">
         <h2 class="text-xl font-bold text-blue-600">تخصيص هيكل وأعمدة الشيت الرئيسي الموحد</h2>
-        <p class="text-sm text-gray-600">يمكنك هنا إضافة أعمدة جديدة، تعديل أسمائها، أو حذفها أو إعادة ترتيبها (بما في
-          ذلك عمود مصدر الملف).</p>
+        <p class="text-sm text-gray-600">يمكنك هنا إضافة أعمدة جديدة (مثل مصدر الملف)، تعديل أسمائها، حذفها، أو إعادة ترتيبها عن طريق **السحب والإفلات** للأعمدة.</p>
 
         <div class="flex gap-2">
-          <input type="text" id="new-col-name" placeholder="اسم العمود الجديد (مثال: ملاحظات، رقم الهاتف...)"
+          <input type="text" id="new-col-name" placeholder="اسم العمود الجديد..."
             class="flex-grow border rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500">
           <button onclick="addMasterColumn()"
             class="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 transition">إضافة
@@ -58,7 +70,7 @@
               <tr>
                 <th class="p-3 border-l">مفتاح النظام (Key)</th>
                 <th class="p-3 border-l">عنوان العمود في الشيت المجمع</th>
-                <th class="p-3 text-center">إجراءات</th>
+                <th class="p-3 text-center">إجراءات (اسحب من الأيقونة أو الصف)</th>
               </tr>
             </thead>
             <tbody id="master-schema-tbody" class="divide-y"></tbody>
@@ -69,6 +81,23 @@
 
     <!-- TAB 1: Templates Management -->
     <section id="tab-templates" class="space-y-6 hidden">
+      <div class="bg-white p-6 rounded-xl shadow-sm border space-y-4">
+        <h3 class="text-lg font-bold text-blue-600">إدارة ملف القوالب (JSON)</h3>
+        <p class="text-sm text-gray-600">قم برفع ملف القوالب (templates.json) لتعديله أو استعراضه، أو قم بتصدير القوالب الحالية كملف JSON جديد.</p>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium mb-1">رفع ملف القوالب (JSON)</label>
+            <input type="file" id="json-template-file" accept=".json" onchange="loadTemplatesJson(event)"
+              class="w-full border rounded-lg px-2 py-1.5 bg-gray-50">
+          </div>
+          <div class="flex items-end gap-2">
+            <button onclick="exportTemplatesJson()"
+              class="bg-green-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-green-700 transition w-full">تصدير وتحميل ملف JSON</button>
+          </div>
+        </div>
+      </div>
+
       <div class="bg-white p-6 rounded-xl shadow-sm border">
         <input type="hidden" id="editing-tpl-key" value="">
 
@@ -79,7 +108,7 @@
               class="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
           </div>
           <div>
-            <label class="block text-sm font-medium mb-1">اختر الملف (Excel / CSV)</label>
+            <label class="block text-sm font-medium mb-1">اختر ملف عينة (Excel / CSV)</label>
             <input type="file" id="sample-file" accept=".xlsx, .xls, .csv"
               class="w-full border rounded-lg px-2 py-1.5 bg-gray-50">
           </div>
@@ -96,10 +125,9 @@
 
       <!-- Configuration Area -->
       <div id="template-config-area" class="bg-white p-6 rounded-xl shadow-sm border hidden space-y-4">
-        <h3 class="text-lg font-bold">ضبط إعدادات القالب</h3>
+        <h3 id="template-form-title" class="text-lg font-bold">ضبط إعدادات القالب</h3>
         <div>
-          <label class="block text-sm font-medium mb-1">رقم صف بدء البيانات الحقيقية (يبدأ العد من 0 لتخطي الترويسة
-            العلوية)</label>
+          <label class="block text-sm font-medium mb-1">رقم صف بدء البيانات الحقيقية (يبدأ العد من 0 لتخطي الترويسة العلوية)</label>
           <input type="number" id="start-row" value="0" class="w-32 border rounded-lg px-3 py-2">
         </div>
         <div>
@@ -107,23 +135,23 @@
           <div id="mapping-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"></div>
         </div>
         <button onclick="saveTemplate()"
-          class="bg-green-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-green-700 transition">حفظ القالب في
-          المتصفح</button>
+          class="bg-green-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-green-700 transition">إضافة / تحديث القالب</button>
       </div>
 
       <!-- Saved Templates List -->
       <div class="bg-white p-6 rounded-xl shadow-sm border">
-        <h3 class="text-lg font-bold mb-4">القوالب المحفوظة حالياً</h3>
+        <h3 class="text-lg font-bold mb-4">القوالب المتاحة حالياً</h3>
         <div id="saved-templates-list" class="space-y-2">
-          <p class="text-gray-500 text-sm">لا توجد قوالب محفوظة .</p>
+          <p class="text-gray-500 text-sm">لا توجد قوالب محملة.</p>
         </div>
       </div>
     </section>
 
     <!-- TAB 2: Process & Consolidate -->
     <section id="tab-process" class="space-y-6">
-      <div class="bg-white p-6 rounded-xl shadow-sm border">
-        <div class="mb-4">
+      <div class="bg-white p-6 rounded-xl shadow-sm border space-y-4">
+        <div>
+          <label class="block text-sm font-medium mb-2">ملفات الإكسيل المراد تجميعها:</label>
           <input type="file" id="batch-files" multiple accept=".xlsx, .xls, .csv"
             class="w-full border rounded-lg p-3 bg-gray-50">
         </div>
@@ -138,14 +166,20 @@
 
     <!-- TAB 3: Preview & Export -->
     <section id="tab-preview" class="space-y-6 hidden">
-      <div class="bg-white p-6 rounded-xl shadow-sm border flex justify-between items-center">
+      <div class="bg-white p-6 rounded-xl shadow-sm border flex flex-wrap justify-between items-center gap-4">
         <div>
           <p class="text-sm text-gray-500" id="record-count">إجمالي الصفوف المجمعة: 0</p>
         </div>
-        <button onclick="exportMasterFile()"
-          class="bg-green-600 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-green-700 transition flex items-center gap-2">
-          تحميل الملف المجمع
-        </button>
+        <div class="flex gap-2">
+          <button onclick="copyMasterData()"
+            class="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition flex items-center gap-2">
+            📋 نسخ البيانات
+          </button>
+          <button onclick="exportMasterFile()"
+            class="bg-green-600 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-green-700 transition flex items-center gap-2">
+            📥 تحميل الملف المجمع
+          </button>
+        </div>
       </div>
 
       <div class="bg-white rounded-xl shadow-sm border overflow-x-auto">
@@ -164,17 +198,30 @@
 
   <!-- JavaScript Logic -->
   <script>
-    let masterColumns = JSON.parse(localStorage.getItem('excel_master_schema')) || [
-      { key: 'customer', label: 'اسم العميل' },
-      { key: 'tracking', label: 'رقم الشحنة' },
-      { key: 'amount', label: 'المبلغ' },
-      { key: 'city', label: 'المدينة' },
+    let masterColumns = [
+      { key: 'id', label: 'ID' },
+      { key: 'customer', label: 'العميل' },
+      { key: 'phone', label: 'الرقم' },
+      { key: 'returned', label: 'مرتجع' },
+      { key: 'status', label: 'الحاله' },
+      { key: 'total', label: 'الاجمالي' },
+      { key: 'collection', label: 'التحصيل' },
+      { key: 'count', label: 'العدد' },
+      { key: 'notes1', label: 'الملاحظات' },
+      { key: 'region', label: 'المنطقه' },
+      { key: 'representative', label: 'المندوب' },
+      { key: 'office', label: 'المكتب' },
+      { key: 'company', label: 'الشركه' },
+      { key: 'employee', label: 'الموظف' },
+      { key: 'notes2', label: 'ملاحظات' },
+      { key: 'rotation', label: 'تدوير' },
       { key: 'source', label: 'مصدر الملف' }
     ];
 
     let activeSampleData = null;
-    let templates = JSON.parse(localStorage.getItem('excel_templates') || '{}');
+    let templates = {}; 
     let masterData = [];
+    let draggedIndex = null;
 
     function switchTab(tabId) {
       ['settings', 'templates', 'process', 'preview'].forEach(t => {
@@ -201,20 +248,56 @@
       let html = '';
       masterColumns.forEach((col, index) => {
         html += `
-                    <tr class="hover:bg-gray-50">
-                        <td class="p-3 border-l font-mono text-xs text-gray-500">${col.key}</td>
-                        <td class="p-3 border-l">
-                            <input type="text" value="${col.label}" onchange="updateColumnLabel(${index}, this.value)" class="border rounded px-2 py-1 w-full outline-none focus:ring-1 focus:ring-blue-500">
-                        </td>
-                        <td class="p-3 text-center flex justify-center gap-2">
-                            <button onclick="moveColumn(${index}, -1)" class="text-gray-600 hover:text-blue-600 px-2 border rounded" ${index === 0 ? 'disabled opacity-30' : ''}>⬆️</button>
-                            <button onclick="moveColumn(${index}, 1)" class="text-gray-600 hover:text-blue-600 px-2 border rounded" ${index === masterColumns.length - 1 ? 'disabled opacity-30' : ''}>⬇️</button>
-                            <button onclick="deleteMasterColumn(${index})" class="text-red-600 hover:text-red-800 px-2 border rounded">حذف</button>
-                        </td>
-                    </tr>
-                `;
+          <tr class="hover:bg-gray-50 draggable-row" draggable="true" ondragstart="onDragStart(event, ${index})" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, ${index})" ondragend="onDragEnd(event)">
+            <td class="p-3 border-l font-mono text-xs text-gray-500 flex items-center gap-2">
+              <span class="cursor-grab text-gray-400 font-bold select-none">☰</span> ${col.key}
+            </td>
+            <td class="p-3 border-l">
+              <input type="text" value="${col.label}" onchange="updateColumnLabel(${index}, this.value)" class="border rounded px-2 py-1 w-full outline-none focus:ring-1 focus:ring-blue-500">
+            </td>
+            <td class="p-3 text-center">
+              <button onclick="deleteMasterColumn(${index})" class="text-red-600 hover:text-red-800 px-3 py-1 border rounded bg-white text-sm font-semibold">حذف</button>
+            </td>
+          </tr>
+        `;
       });
       tbody.innerHTML = html;
+    }
+
+    // Drag and Drop Handlers for Master Columns
+    function onDragStart(e, index) {
+      draggedIndex = index;
+      e.target.classList.add('dragging');
+    }
+
+    function onDragOver(e) {
+      e.preventDefault();
+      const tr = e.target.closest('tr');
+      if (tr) tr.classList.add('drag-over');
+    }
+
+    function onDragLeave(e) {
+      const tr = e.target.closest('tr');
+      if (tr) tr.classList.remove('drag-over');
+    }
+
+    function onDrop(e, targetIndex) {
+      e.preventDefault();
+      const tr = e.target.closest('tr');
+      if (tr) tr.classList.remove('drag-over');
+
+      if (draggedIndex === null || draggedIndex === targetIndex) return;
+
+      const movedItem = masterColumns.splice(draggedIndex, 1)[0];
+      masterColumns.splice(targetIndex, 0, movedItem);
+      renderMasterSchemaSettings();
+    }
+
+    function onDragEnd(e) {
+      draggedIndex = null;
+      document.querySelectorAll('.draggable-row').forEach(row => {
+        row.classList.remove('dragging', 'drag-over');
+      });
     }
 
     function addMasterColumn() {
@@ -226,24 +309,12 @@
       }
       const key = 'col_' + Date.now();
       masterColumns.push({ key, label });
-      localStorage.setItem('excel_master_schema', JSON.stringify(masterColumns));
       input.value = '';
       renderMasterSchemaSettings();
     }
 
     function updateColumnLabel(index, newLabel) {
       masterColumns[index].label = newLabel.trim();
-      localStorage.setItem('excel_master_schema', JSON.stringify(masterColumns));
-    }
-
-    function moveColumn(index, direction) {
-      const target = index + direction;
-      if (target < 0 || target >= masterColumns.length) return;
-      const temp = masterColumns[index];
-      masterColumns[index] = masterColumns[target];
-      masterColumns[target] = temp;
-      localStorage.setItem('excel_master_schema', JSON.stringify(masterColumns));
-      renderMasterSchemaSettings();
     }
 
     function deleteMasterColumn(index) {
@@ -252,7 +323,6 @@
         return;
       }
       masterColumns.splice(index, 1);
-      localStorage.setItem('excel_master_schema', JSON.stringify(masterColumns));
       renderMasterSchemaSettings();
     }
 
@@ -265,6 +335,44 @@
         temp = Math.floor((temp - 1) / 26);
       }
       return letter;
+    }
+
+    function loadTemplatesJson(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (typeof parsed === 'object' && parsed !== null) {
+            templates = parsed;
+            renderTemplatesList();
+            alert('تم تحميل ملف القوالب بنجاح!');
+          } else {
+            alert('ملف JSON غير صالح.');
+          }
+        } catch(err) {
+          console.error(err);
+          alert('حدث خطأ أثناء قراءة ملف JSON.');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function exportTemplatesJson() {
+      if (Object.keys(templates).length === 0) {
+        alert('لا توجد قوالب لتصديرها.');
+        return;
+      }
+
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(templates, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", "templates.json");
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
     }
 
     function loadSampleFile() {
@@ -333,7 +441,7 @@
       }
 
       masterColumns.forEach(mCol => {
-        // عمود المصدر هو عمود نظام يُعبأ تلقائياً باسم الملف، ولا يتم ربطه بخلايا الشيت الداخلية
+        // استثناء عمود مصدر الملف لأنه يُكتب تلقائياً من اسم الملف
         if (mCol.key === 'source') return;
 
         let div = document.createElement('div');
@@ -356,11 +464,11 @@
         }
 
         div.innerHTML = `
-                    <label class="block text-xs font-bold text-gray-700 mb-1">عمود الشيت الرئيسي: <span class="text-blue-600">${mCol.label}</span></label>
-                    <select data-master-key="${mCol.key}" class="mapping-select w-full border rounded p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
-                        ${selectOptions}
-                    </select>
-                `;
+          <label class="block text-xs font-bold text-gray-700 mb-1">عمود الشيت الرئيسي: <span class="text-blue-600">${mCol.label}</span></label>
+          <select data-master-key="${mCol.key}" class="mapping-select w-full border rounded p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+              ${selectOptions}
+          </select>
+        `;
         container.appendChild(div);
       });
 
@@ -400,9 +508,8 @@
       }
 
       templates[tplName] = { startRow, mapping };
-      localStorage.setItem('excel_templates', JSON.stringify(templates));
 
-      alert('تم حفظ القالب بنجاح!');
+      alert('تم حفظ القالب بنجاح! لا تنسَ الضغط على "تصدير وتحميل ملف JSON" لتحديث ملف القوالب الخاص بك.');
       cancelEditTemplate();
       renderTemplatesList();
     }
@@ -428,7 +535,7 @@
       document.getElementById('tpl-name').value = '';
       document.getElementById('start-row').value = 0;
       document.getElementById('sample-file').value = '';
-      document.getElementById('template-form-title').innerText = 'يجب ان يكون الاسم مطابق لاسم الملف';
+      document.getElementById('template-form-title').innerText = 'ضبط إعدادات القالب';
       document.getElementById('cancel-edit-btn').classList.add('hidden');
       document.getElementById('template-config-area').classList.add('hidden');
     }
@@ -438,7 +545,7 @@
       const keys = Object.keys(templates);
 
       if (keys.length === 0) {
-        listDiv.innerHTML = `<p class="text-gray-500 text-sm">لا توجد قوالب محفوظة بعد.</p>`;
+        listDiv.innerHTML = `<p class="text-gray-500 text-sm">لا توجد قوالب محملة بعد. قم برفع ملف JSON أو إضافة قالب جديد.</p>`;
         return;
       }
 
@@ -452,17 +559,17 @@
           .join(' | ');
 
         html += `
-                    <div class="flex justify-between items-center p-3 border rounded-lg bg-gray-50">
-                        <div>
-                            <span class="font-bold text-blue-600">${key}</span>
-                            <span class="text-xs text-gray-500 block">بدء البيانات من صف: ${templates[key].startRow} | التوجيه: [${mappingDetails || 'لا يوجد ربط'}]</span>
-                        </div>
-                        <div class="flex gap-2">
-                            <button onclick="editTemplate('${key}')" class="text-blue-600 hover:text-blue-800 text-sm font-semibold px-3 py-1 border rounded bg-white">تعديل</button>
-                            <button onclick="deleteTemplate('${key}')" class="text-red-600 hover:text-red-800 text-sm font-semibold px-3 py-1 border rounded bg-white">حذف</button>
-                        </div>
-                    </div>
-                `;
+          <div class="flex justify-between items-center p-3 border rounded-lg bg-gray-50">
+              <div>
+                  <span class="font-bold text-blue-600">${key}</span>
+                  <span class="text-xs text-gray-500 block">بدء البيانات من صف: ${templates[key].startRow} | التوجيه: [${mappingDetails || 'لا يوجد ربط'}]</span>
+              </div>
+              <div class="flex gap-2">
+                  <button onclick="editTemplate('${key}')" class="text-blue-600 hover:text-blue-800 text-sm font-semibold px-3 py-1 border rounded bg-white">تعديل</button>
+                  <button onclick="deleteTemplate('${key}')" class="text-red-600 hover:text-red-800 text-sm font-semibold px-3 py-1 border rounded bg-white">حذف</button>
+              </div>
+          </div>
+        `;
       });
       listDiv.innerHTML = html;
     }
@@ -470,7 +577,6 @@
     function deleteTemplate(key) {
       if (confirm(`هل أنت متأكد من حذف القالب "${key}"؟`)) {
         delete templates[key];
-        localStorage.setItem('excel_templates', JSON.stringify(templates));
         renderTemplatesList();
       }
     }
@@ -479,25 +585,30 @@
       const fileInput = document.getElementById('batch-files');
       const logBox = document.getElementById('process-logs');
 
+      if (Object.keys(templates).length === 0) {
+        alert('الرجاء إنشاء أو إضافة القوالب أولاً في قسم "القوالب" قبل بدء المعالجة.');
+        return;
+      }
+
       if (fileInput.files.length === 0) {
-        alert('الرجاء اختيار ملف واحد على الأقل.');
+        alert('الرجاء اختيار ملف إكسيل واحد على الأقل.');
         return;
       }
 
       logBox.classList.remove('hidden');
-      logBox.innerHTML = '> بدأ...\n';
+      logBox.innerHTML = '> بدأ المعالجة...\n';
       masterData = [];
 
       for (let file of fileInput.files) {
         let fullFileName = file.name;
         let fileNameWithoutExt = fullFileName.substring(0, fullFileName.lastIndexOf('.')) || fullFileName;
 
-        logBox.innerHTML += `> عدد الاسطر: ${fullFileName}\n`;
+        logBox.innerHTML += `> معالجة الملف: ${fullFileName}\n`;
 
         let matchedTplKey = Object.keys(templates).find(k => k === fileNameWithoutExt);
 
         if (!matchedTplKey) {
-          logBox.innerHTML += `> ⚠️ تحذير: لا يوجد قالب محفوظ بهذا الاسم "${fileNameWithoutExt}"، تم التخطي.\n`;
+          logBox.innerHTML += `> ⚠️ تحذير: لا يوجد قالب مطابق بهذا الاسم "${fileNameWithoutExt}"، تم التخطي.\n`;
           continue;
         }
 
@@ -511,33 +622,35 @@
           if (!r || r.length === 0) continue;
 
           let rowObject = {};
-          let actualDataCount = 0; // عد الأعمدة الحقيقية (باستثناء المصدر)
+          let actualDataCount = 0;
 
           masterColumns.forEach(mCol => {
-            if (mCol.key === 'source' || mCol.label.includes('ملف') || mCol.key.includes('source')) {
+            // التحقق من مفتاح أو تسمية عمود مصدر الملف لملئه تلقائياً
+            if (mCol.key === 'source' || mCol.label.includes('مصدر الملف')) {
               rowObject[mCol.key] = fileNameWithoutExt;
-              return; // لا نحتسب عمود المصدر ضمن البيانات الحقيقية للتشغيل
+              actualDataCount++;
+              return;
             }
 
             let mappedColIndex = tpl.mapping[mCol.key];
             if (mappedColIndex !== undefined && r[mappedColIndex] !== undefined && String(r[mappedColIndex]).trim() !== '') {
               rowObject[mCol.key] = r[mappedColIndex];
-              actualDataCount++; // زيادة العداد فقط لو العمود الحقيقي به بيانات
+              actualDataCount++;
             } else {
               rowObject[mCol.key] = '';
             }
           });
 
-          // الشرط الصارم: يجب أن يحتوي الصف على بيانات في 3 أعمدة حقيقية على الأقل لتخطي الصفوف الفارغة
+          // الشرط المحدث: يجب أن يحتوي الصف على 3 أعمدة أو أكثر تحتوي على بيانات فعلية
           if (actualDataCount >= 3) {
             masterData.push(rowObject);
             validRowsCountForFile++;
           }
         }
-        logBox.innerHTML += `> ${validRowsCountForFile} \n`;
+        logBox.innerHTML += `> تم استخراج ${validRowsCountForFile} صف صالح.\n`;
       }
 
-      logBox.innerHTML += `> 🎉 تم تجميع: ${masterData.length}\n`;
+      logBox.innerHTML += `> 🎉 تم الانتهاء بنجاح! إجمالي الصفوف: ${masterData.length}\n`;
       updateMasterPreview();
       switchTab('preview');
     }
@@ -602,6 +715,29 @@
       tbody.innerHTML = html;
     }
 
+    function copyMasterData() {
+      if (masterData.length === 0) {
+        alert('لا توجد بيانات لنسخها.');
+        return;
+      }
+
+      let tsvContent = "";
+      masterData.forEach((row, index) => {
+        let rowValues = masterColumns.map(mc => {
+          let val = row[mc.key] !== undefined && row[mc.key] !== null ? row[mc.key] : '';
+          return String(val).replace(/\t/g, " ");
+        });
+        tsvContent += rowValues.join("\t") + (index === masterData.length - 1 ? "" : "\n");
+      });
+
+      navigator.clipboard.writeText(tsvContent).then(() => {
+        alert('تم نسخ البيانات بنجاح (بدون العناوين)! يمكنك لصقها مباشرة في إكسيل (Ctrl+V).');
+      }).catch(err => {
+        console.error('فشل النسخ: ', err);
+        alert('حدث خطأ أثناء نسخ البيانات.');
+      });
+    }
+
     function exportMasterFile() {
       if (masterData.length === 0) {
         alert('لا توجد بيانات لتصديرها.');
@@ -624,5 +760,4 @@
     }
   </script>
 </body>
-
 </html>
