@@ -80,7 +80,7 @@
     </section>
 
     <!-- TAB 1: Templates Management -->
-    <section id="tab-templates" class="space-y-6 hidden">
+    <section id="tab-templates" class="space-y-6">
       <div class="bg-white p-6 rounded-xl shadow-sm border space-y-4">
         <h3 class="text-lg font-bold text-blue-600">إدارة ملف القوالب (JSON)</h3>
         <p class="text-sm text-gray-600">قم برفع ملف القوالب (templates.json) لتعديله أو استعراضه، أو قم بتصدير القوالب الحالية كملف JSON جديد.</p>
@@ -126,6 +126,18 @@
       <!-- Configuration Area -->
       <div id="template-config-area" class="bg-white p-6 rounded-xl shadow-sm border hidden space-y-4">
         <h3 id="template-form-title" class="text-lg font-bold">ضبط إعدادات القالب</h3>
+
+        <!-- اختيار الورقة (Sheet) -->
+        <div id="sheet-select-wrapper" class="hidden bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <label class="block text-sm font-bold mb-1 text-blue-700">اختر الورقة (Sheet) التي سيتم استخراج البيانات
+            منها</label>
+          <select id="sheet-select" onchange="onSheetChange()"
+            class="w-full md:w-72 border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"></select>
+          <p class="text-xs text-gray-500 mt-1">سيتم حفظ اسم هذه الورقة مع القالب، وعند التجميع سيتم البحث عنها بنفس
+            الاسم داخل كل ملف مطابق.</p>
+        </div>
+        <p id="sheet-saved-note" class="hidden text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2"></p>
+
         <div>
           <label class="block text-sm font-medium mb-1">رقم صف بدء البيانات الحقيقية (يبدأ العد من 0 لتخطي الترويسة العلوية)</label>
           <input type="number" id="start-row" value="0" class="w-32 border rounded-lg px-3 py-2">
@@ -134,6 +146,46 @@
           <h4 class="font-semibold mb-2">مطابقة الأعمدة:</h4>
           <div id="mapping-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"></div>
         </div>
+
+        <!-- فلترة الصفوف بناءً على القيم الفعلية للعمود -->
+        <div class="border-t pt-4">
+          <h4 class="font-semibold mb-1">فلترة الصفوف (اختياري)</h4>
+          <p class="text-xs text-gray-500 mb-3">اختر عمودًا من الملف الأصلي، وهتظهرلك تلقائياً كل القيم المختلفة
+            الموجودة فعلياً جوه هذا العمود في ملف العينة — حدد منها القيم اللي عايز تشتغل عليها.</p>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <div>
+              <label class="block text-xs font-bold text-gray-700 mb-1">العمود</label>
+              <select id="filter-column-select" onchange="onFilterColumnChange()"
+                class="w-full border rounded p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="">-- بدون فلتر --</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-gray-700 mb-1">طريقة الفلتر</label>
+              <select id="filter-mode-select"
+                class="w-full border rounded p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="include">استخراج الصفوف اللي قيمتها من ضمن المحدد فقط</option>
+                <option value="exclude">استبعاد الصفوف اللي قيمتها من ضمن المحدد</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="filter-values-wrapper" class="hidden">
+            <div class="flex flex-wrap justify-between items-center gap-2 mb-2">
+              <label class="block text-xs font-bold text-gray-700">القيم الموجودة فعلياً في هذا العمود:</label>
+              <div class="flex gap-3">
+                <button type="button" onclick="selectAllFilterValues(true)" class="text-xs text-blue-600 hover:underline">تحديد الكل</button>
+                <button type="button" onclick="selectAllFilterValues(false)" class="text-xs text-gray-500 hover:underline">إلغاء الكل</button>
+              </div>
+            </div>
+            <input type="text" id="filter-values-search" oninput="filterValuesSearch()" placeholder="ابحث في القيم..."
+              class="w-full border rounded px-3 py-1.5 text-sm mb-2 outline-none focus:ring-2 focus:ring-blue-500">
+            <div id="filter-values-container"
+              class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-48 overflow-y-auto border rounded p-2 bg-gray-50"></div>
+          </div>
+        </div>
+
         <button onclick="saveTemplate()"
           class="bg-green-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-green-700 transition">إضافة / تحديث القالب</button>
       </div>
@@ -148,7 +200,7 @@
     </section>
 
     <!-- TAB 2: Process & Consolidate -->
-    <section id="tab-process" class="space-y-6">
+    <section id="tab-process" class="space-y-6 hidden">
       <div class="bg-white p-6 rounded-xl shadow-sm border space-y-4">
         <div>
           <label class="block text-sm font-medium mb-2">ملفات الإكسيل المراد تجميعها:</label>
@@ -171,7 +223,7 @@
           <p class="text-sm text-gray-500" id="record-count">إجمالي الصفوف المجمعة: 0</p>
         </div>
         <div class="flex gap-2">
-          <button onclick="copyMasterData()"
+          <button onclick="copyMasterData()" id="copy-table-btn"
             class="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition flex items-center gap-2">
             📋 نسخ البيانات
           </button>
@@ -218,6 +270,8 @@
     ];
 
     let activeSampleData = null;
+    let activeWorkbook = null;   // الملف الكامل بعد قراءته (لكل الأوراق)
+    let activeSheetName = null;  // اسم الورقة المختارة حالياً للقالب قيد التحرير
     let templates = {}; 
     let masterData = [];
     let draggedIndex = null;
@@ -374,6 +428,8 @@
       downloadAnchor.remove();
     }
 
+    // ============= تحليل ملف العينة + اختيار الورقة (Sheet) =============
+
     function loadSampleFile() {
       const fileInput = document.getElementById('sample-file');
       const tplName = document.getElementById('tpl-name').value.trim();
@@ -387,7 +443,20 @@
       if (fileInput.files.length === 0) {
         if (editingKey && templates[editingKey]) {
           activeSampleData = [[]];
+          activeWorkbook = null;
+          activeSheetName = templates[editingKey].sheetName || null;
+
+          document.getElementById('sheet-select-wrapper').classList.add('hidden');
+          const note = document.getElementById('sheet-saved-note');
+          if (activeSheetName) {
+            note.innerText = `الورقة المحفوظة لهذا القالب: "${activeSheetName}". لتغييرها اختر ملف عينة جديد ثم اضغط "تحليل الملف".`;
+            note.classList.remove('hidden');
+          } else {
+            note.classList.add('hidden');
+          }
+
           buildMappingUI(activeSampleData, templates[editingKey].mapping);
+          buildFilterColumnSelect(activeSampleData, templates[editingKey].filter);
           document.getElementById('template-config-area').classList.remove('hidden');
           return;
         } else {
@@ -403,22 +472,38 @@
         try {
           const data = new Uint8Array(e.target.result);
           const workbook = XLSX.read(data, { type: 'array', cellStyles: false, cellFormulas: false });
-
-          let targetSheetName = workbook.SheetNames[0];
-          let worksheet = workbook.Sheets[targetSheetName];
-          activeSampleData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-          if (!activeSampleData || activeSampleData.length === 0) {
-            alert('الملف فارغ أو لا يحتوي على بيانات!');
-            return;
-          }
+          activeWorkbook = workbook;
 
           let existingMapping = null;
+          let existingFilter = null;
+          let preferredSheet = null;
           if (editingKey && templates[editingKey]) {
             existingMapping = templates[editingKey].mapping;
+            existingFilter = templates[editingKey].filter;
+            preferredSheet = templates[editingKey].sheetName;
           }
 
-          buildMappingUI(activeSampleData, existingMapping);
+          // تعبئة قائمة اختيار الورقة بكل أوراق الملف
+          const sheetSelect = document.getElementById('sheet-select');
+          sheetSelect.innerHTML = '';
+          workbook.SheetNames.forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.innerText = name;
+            sheetSelect.appendChild(opt);
+          });
+
+          let targetSheetName = workbook.SheetNames[0];
+          if (preferredSheet && workbook.SheetNames.includes(preferredSheet)) {
+            targetSheetName = preferredSheet;
+          }
+          sheetSelect.value = targetSheetName;
+
+          document.getElementById('sheet-select-wrapper').classList.remove('hidden');
+          document.getElementById('sheet-saved-note').classList.add('hidden');
+
+          loadSheetIntoMapping(targetSheetName, existingMapping, existingFilter);
+
           document.getElementById('template-config-area').classList.remove('hidden');
         } catch (err) {
           console.error(err);
@@ -426,6 +511,43 @@
         }
       };
       reader.readAsArrayBuffer(file);
+    }
+
+    // يقرأ ورقة معينة من الملف المحمّل حالياً ويعيد بناء واجهة المطابقة وواجهة الفلترة
+    function loadSheetIntoMapping(sheetName, existingMapping = null, existingFilter = null) {
+      if (!activeWorkbook) return;
+      const worksheet = activeWorkbook.Sheets[sheetName];
+      if (!worksheet) {
+        alert(`تعذر العثور على ورقة باسم "${sheetName}" داخل الملف.`);
+        return;
+      }
+      activeSheetName = sheetName;
+      activeSampleData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+      if (!activeSampleData || activeSampleData.length === 0) {
+        alert('الورقة المختارة فارغة أو لا تحتوي على بيانات، اختر ورقة أخرى إن لزم الأمر.');
+      }
+
+      buildMappingUI(activeSampleData, existingMapping);
+      buildFilterColumnSelect(activeSampleData, existingFilter);
+    }
+
+    // عند تغيير المستخدم لاختيار الورقة من القائمة المنسدلة
+    function onSheetChange() {
+      const sheetSelect = document.getElementById('sheet-select');
+      const currentMapping = getCurrentMappingFromUI(); // نحافظ على أي مطابقة اختارها المستخدم بالفعل
+      const currentFilter = getCurrentFilterFromUI();    // نحافظ على أي فلتر اختاره المستخدم بالفعل
+      loadSheetIntoMapping(sheetSelect.value, currentMapping, currentFilter);
+    }
+
+    function getCurrentMappingFromUI() {
+      let mapping = {};
+      document.querySelectorAll('.mapping-select').forEach(sel => {
+        let mKey = sel.getAttribute('data-master-key');
+        let val = sel.value;
+        if (val !== "") mapping[mKey] = parseInt(val);
+      });
+      return mapping;
     }
 
     function buildMappingUI(rows, existingMapping = null) {
@@ -482,31 +604,210 @@
       }
     }
 
+    // ============= فلترة الصفوف (اختيار من القيم الفعلية للعمود) =============
+
+    // يبني قائمة أعمدة الملف الأصلي لاختيار عمود الفلتر منها (نفس أعمدة المطابقة)
+    function buildFilterColumnSelect(rows, existingFilter = null) {
+      const select = document.getElementById('filter-column-select');
+      if (!select) return;
+
+      let maxCols = 15;
+      if (rows && rows.length > 0) {
+        rows.slice(0, 5).forEach(r => {
+          if (r.length > maxCols) maxCols = r.length;
+        });
+      }
+
+      let optionsHtml = `<option value="">-- بدون فلتر --</option>`;
+      for (let i = 0; i < maxCols; i++) {
+        let colLetter = getColumnLetter(i);
+        let headerText = '';
+        if (rows && rows.length > 0) {
+          for (let rIdx = 0; rIdx < Math.min(rows.length, 3); rIdx++) {
+            if (rows[rIdx] && rows[rIdx][i] !== undefined && rows[rIdx][i] !== '') {
+              headerText = rows[rIdx][i];
+              break;
+            }
+          }
+        }
+        optionsHtml += `<option value="${i}">عمود ${colLetter} ${headerText ? '(' + headerText + ')' : ''}</option>`;
+      }
+      select.innerHTML = optionsHtml;
+
+      const modeSelect = document.getElementById('filter-mode-select');
+      const wrapper = document.getElementById('filter-values-wrapper');
+      const searchInput = document.getElementById('filter-values-search');
+      if (searchInput) searchInput.value = '';
+
+      if (existingFilter && existingFilter.colIndex !== undefined && existingFilter.colIndex !== null && existingFilter.colIndex !== '') {
+        select.value = existingFilter.colIndex;
+        modeSelect.value = existingFilter.mode || 'include';
+        wrapper.classList.remove('hidden');
+        buildFilterValuesList(rows, existingFilter.colIndex, existingFilter.values || []);
+      } else {
+        select.value = '';
+        modeSelect.value = 'include';
+        wrapper.classList.add('hidden');
+        document.getElementById('filter-values-container').innerHTML = '';
+      }
+    }
+
+    // عند تغيير العمود المختار للفلتر: نعيد بناء قائمة القيم من جديد (بدون قيم محددة مسبقاً)
+    function onFilterColumnChange() {
+      const colSelect = document.getElementById('filter-column-select');
+      const wrapper = document.getElementById('filter-values-wrapper');
+
+      if (colSelect.value === '') {
+        wrapper.classList.add('hidden');
+        document.getElementById('filter-values-container').innerHTML = '';
+        return;
+      }
+
+      wrapper.classList.remove('hidden');
+      const searchInput = document.getElementById('filter-values-search');
+      if (searchInput) searchInput.value = '';
+      buildFilterValuesList(activeSampleData, colSelect.value, []);
+    }
+
+    // يستخرج القيم الفريدة الموجودة فعلياً في العمود المختار من بيانات ملف العينة، ويبني منها checkboxes
+    function buildFilterValuesList(rows, colIndex, selectedValues = []) {
+      const container = document.getElementById('filter-values-container');
+      if (!container) return;
+      container.innerHTML = '';
+
+      if (colIndex === '' || colIndex === null || colIndex === undefined || !rows) {
+        container.innerHTML = `<p class="text-xs text-gray-400 col-span-full">اختر عمودًا أولاً لعرض القيم المتاحة فيه.</p>`;
+        return;
+      }
+
+      const idx = parseInt(colIndex);
+      const rawValues = [];
+      rows.forEach(r => {
+        if (!r) return;
+        let v = r[idx];
+        let s = (v !== undefined && v !== null) ? String(v).trim() : '';
+        rawValues.push(s);
+      });
+
+      const uniqueValues = [...new Set(rawValues)];
+      uniqueValues.sort((a, b) => {
+        if (a === '') return 1;
+        if (b === '') return -1;
+        return a.localeCompare(b, 'ar');
+      });
+
+      if (uniqueValues.length === 0) {
+        container.innerHTML = `<p class="text-xs text-gray-400 col-span-full">لا توجد قيم لعرضها في هذا العمود.</p>`;
+        return;
+      }
+
+      const limited = uniqueValues.slice(0, 200);
+      limited.forEach(val => {
+        const valueKey = val === '' ? '__EMPTY__' : val;
+        const displayVal = val === '' ? '(فارغة)' : val;
+
+        const label = document.createElement('label');
+        label.className = 'flex items-center gap-2 text-sm border rounded px-2 py-1 bg-white cursor-pointer';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'filter-value-checkbox';
+        checkbox.value = valueKey;
+        if (selectedValues.includes(valueKey)) checkbox.checked = true;
+
+        const span = document.createElement('span');
+        span.className = 'truncate';
+        span.title = displayVal;
+        span.innerText = displayVal;
+
+        label.appendChild(checkbox);
+        label.appendChild(span);
+        container.appendChild(label);
+      });
+
+      if (uniqueValues.length > 200) {
+        const note = document.createElement('p');
+        note.className = 'text-xs text-amber-600 mt-1 col-span-full';
+        note.innerText = `تم عرض أول 200 قيمة فريدة فقط من أصل ${uniqueValues.length}.`;
+        container.appendChild(note);
+      }
+    }
+
+    function selectAllFilterValues(state) {
+      document.querySelectorAll('.filter-value-checkbox').forEach(cb => {
+        // نحدد/نلغي فقط القيم الظاهرة حالياً (بعد أي بحث)، عشان ما نأثرش على قيم مخفية بدون قصد
+        const label = cb.closest('label');
+        if (!label || label.style.display !== 'none') {
+          cb.checked = state;
+        }
+      });
+    }
+
+    function filterValuesSearch() {
+      const term = document.getElementById('filter-values-search').value.trim().toLowerCase();
+      document.querySelectorAll('#filter-values-container label').forEach(label => {
+        const text = label.innerText.toLowerCase();
+        label.style.display = text.includes(term) ? 'flex' : 'none';
+      });
+    }
+
+    function getCurrentFilterFromUI() {
+      const colSelect = document.getElementById('filter-column-select');
+      if (!colSelect || colSelect.value === '') return null;
+      const mode = document.getElementById('filter-mode-select').value;
+      const values = Array.from(document.querySelectorAll('.filter-value-checkbox'))
+        .filter(cb => cb.checked)
+        .map(cb => cb.value);
+      return { colIndex: parseInt(colSelect.value), mode, values };
+    }
+
+    // يتحقق هل صف معين مطابق لفلتر القالب أم لا (يُستدعى أثناء التجميع)
+    function rowPassesFilter(r, filter) {
+      if (!filter || filter.colIndex === undefined || filter.colIndex === null || filter.colIndex === '') {
+        return true; // لا يوجد فلتر، كل الصفوف تمر
+      }
+      if (!filter.values || filter.values.length === 0) {
+        return true; // لم يتم تحديد أي قيمة = بدون فلتر فعلي (أماناً حتى لا تُستبعد كل الصفوف بالخطأ)
+      }
+
+      let cellVal = r[filter.colIndex];
+      let cellStr = (cellVal !== undefined && cellVal !== null) ? String(cellVal).trim() : '';
+      let key = cellStr === '' ? '__EMPTY__' : cellStr;
+
+      const isInSelected = filter.values.includes(key);
+      return filter.mode === 'exclude' ? !isInSelected : isInSelected;
+    }
+
     function saveTemplate() {
       const tplName = document.getElementById('tpl-name').value.trim();
       const startRow = parseInt(document.getElementById('start-row').value) || 0;
       const editingKey = document.getElementById('editing-tpl-key').value;
-      const selects = document.querySelectorAll('.mapping-select');
 
       if (!tplName) {
         alert('الرجاء إدخال اسم القالب.');
         return;
       }
 
-      let mapping = {};
-      selects.forEach(sel => {
-        let mKey = sel.getAttribute('data-master-key');
-        let val = sel.value;
-        if (val !== "") {
-          mapping[mKey] = parseInt(val);
-        }
-      });
+      let mapping = getCurrentMappingFromUI();
+      let filter = getCurrentFilterFromUI();
+
+      let sheetName = activeSheetName || (editingKey && templates[editingKey] ? templates[editingKey].sheetName : null);
+
+      if (!sheetName) {
+        alert('يرجى اختيار ملف عينة أولاً لتحديد الورقة (Sheet) الخاصة بهذا القالب قبل الحفظ.');
+        return;
+      }
+
+      if (filter && filter.values.length === 0) {
+        const proceed = confirm('اخترت عمود فلتر لكن لم تحدد أي قيمة منه، فسيتم تجاهل الفلتر واستخراج كل الصفوف. هل تريد المتابعة؟');
+        if (!proceed) return;
+      }
 
       if (editingKey && editingKey !== tplName) {
         delete templates[editingKey];
       }
 
-      templates[tplName] = { startRow, mapping };
+      templates[tplName] = { startRow, mapping, sheetName, filter };
 
       alert('تم حفظ القالب بنجاح! لا تنسَ الضغط على "تصدير وتحميل ملف JSON" لتحديث ملف القوالب الخاص بك.');
       cancelEditTemplate();
@@ -523,7 +824,20 @@
       document.getElementById('template-form-title').innerText = `تعديل قالب: ${key}`;
       document.getElementById('cancel-edit-btn').classList.remove('hidden');
 
+      activeWorkbook = null;
+      activeSheetName = tpl.sheetName || null;
+
+      document.getElementById('sheet-select-wrapper').classList.add('hidden');
+      const note = document.getElementById('sheet-saved-note');
+      if (activeSheetName) {
+        note.innerText = `الورقة المحفوظة لهذا القالب: "${activeSheetName}". لتغييرها اختر ملف عينة جديد ثم اضغط "تحليل الملف".`;
+        note.classList.remove('hidden');
+      } else {
+        note.classList.add('hidden');
+      }
+
       buildMappingUI(null, tpl.mapping);
+      buildFilterColumnSelect(null, tpl.filter);
       document.getElementById('template-config-area').classList.remove('hidden');
 
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -537,6 +851,23 @@
       document.getElementById('template-form-title').innerText = 'ضبط إعدادات القالب';
       document.getElementById('cancel-edit-btn').classList.add('hidden');
       document.getElementById('template-config-area').classList.add('hidden');
+      document.getElementById('sheet-select-wrapper').classList.add('hidden');
+      document.getElementById('sheet-saved-note').classList.add('hidden');
+
+      const filterColSelect = document.getElementById('filter-column-select');
+      if (filterColSelect) filterColSelect.innerHTML = `<option value="">-- بدون فلتر --</option>`;
+      const filterModeSelect = document.getElementById('filter-mode-select');
+      if (filterModeSelect) filterModeSelect.value = 'include';
+      const filterValuesWrapper = document.getElementById('filter-values-wrapper');
+      if (filterValuesWrapper) filterValuesWrapper.classList.add('hidden');
+      const filterValuesContainer = document.getElementById('filter-values-container');
+      if (filterValuesContainer) filterValuesContainer.innerHTML = '';
+      const filterValuesSearchInput = document.getElementById('filter-values-search');
+      if (filterValuesSearchInput) filterValuesSearchInput.value = '';
+
+      activeWorkbook = null;
+      activeSheetName = null;
+      activeSampleData = null;
     }
 
     function renderTemplatesList() {
@@ -557,11 +888,24 @@
           })
           .join(' | ');
 
+        let sheetLabel = templates[key].sheetName ? templates[key].sheetName : '(غير محدد)';
+
+        let filterLabel = 'بدون فلتر';
+        const f = templates[key].filter;
+        if (f && f.colIndex !== undefined && f.colIndex !== null && f.colIndex !== '' && f.values && f.values.length > 0) {
+          const modeLabel = f.mode === 'exclude' ? 'استبعاد' : 'تضمين فقط';
+          const displayValues = f.values.map(v => v === '__EMPTY__' ? '(فارغة)' : v);
+          const preview = displayValues.slice(0, 3).join('، ');
+          const more = displayValues.length > 3 ? ` (+${displayValues.length - 3})` : '';
+          filterLabel = `عمود ${getColumnLetter(f.colIndex)} — ${modeLabel}: ${preview}${more}`;
+        }
+
         html += `
           <div class="flex justify-between items-center p-3 border rounded-lg bg-gray-50">
               <div>
                   <span class="font-bold text-blue-600">${key}</span>
-                  <span class="text-xs text-gray-500 block">بدء البيانات من صف: ${templates[key].startRow} | التوجيه: [${mappingDetails || 'لا يوجد ربط'}]</span>
+                  <span class="text-xs text-gray-500 block">الورقة: <b>${sheetLabel}</b> | بدء البيانات من صف: ${templates[key].startRow} | التوجيه: [${mappingDetails || 'لا يوجد ربط'}]</span>
+                  <span class="text-xs text-gray-500 block">الفلتر: <b>${filterLabel}</b></span>
               </div>
               <div class="flex gap-2">
                   <button onclick="editTemplate('${key}')" class="text-blue-600 hover:text-blue-800 text-sm font-semibold px-3 py-1 border rounded bg-white">تعديل</button>
@@ -579,6 +923,8 @@
         renderTemplatesList();
       }
     }
+
+    // ============= المعالجة الجماعية للملفات =============
 
     async function processBatchFiles() {
       const fileInput = document.getElementById('batch-files');
@@ -612,13 +958,29 @@
         }
 
         let tpl = templates[matchedTplKey];
-        let targetSheet = await readFileAsync(file);
-        let rows = XLSX.utils.sheet_to_json(targetSheet, { header: 1 });
+        let result = await readFileAsync(file, tpl.sheetName || null);
+
+        if (tpl.sheetName && !result.sheetFound) {
+          logBox.innerHTML += `> ⚠️ تنبيه: الورقة المحفوظة "${tpl.sheetName}" غير موجودة في هذا الملف (الأوراق المتاحة: ${result.sheetNames.join('، ')})، تم استخدام ورقة "${result.sheetName}" بدلاً منها.\n`;
+        } else {
+          logBox.innerHTML += `> ✔ تم القراءة من ورقة: "${result.sheetName}"\n`;
+        }
+
+        let rows = XLSX.utils.sheet_to_json(result.sheet, { header: 1 });
 
         let validRowsCountForFile = 0;
+        let skippedByFilterCount = 0;
+        const hasActiveFilter = tpl.filter && tpl.filter.colIndex !== undefined && tpl.filter.colIndex !== null && tpl.filter.colIndex !== '' && tpl.filter.values && tpl.filter.values.length > 0;
+
         for (let i = tpl.startRow; i < rows.length; i++) {
           let r = rows[i];
           if (!r || r.length === 0) continue;
+
+          // تطبيق فلتر الصفوف (إن وُجد) قبل أي معالجة أخرى للصف
+          if (!rowPassesFilter(r, tpl.filter)) {
+            skippedByFilterCount++;
+            continue;
+          }
 
           let rowObject = {};
           let actualDataCount = 0;
@@ -646,6 +1008,10 @@
             validRowsCountForFile++;
           }
         }
+
+        if (hasActiveFilter) {
+          logBox.innerHTML += `> 🔍 تم تخطي ${skippedByFilterCount} صف لعدم مطابقتها لشرط الفلتر.\n`;
+        }
         logBox.innerHTML += `> تم استخراج ${validRowsCountForFile} صف صالح.\n`;
       }
 
@@ -654,7 +1020,8 @@
       switchTab('preview');
     }
 
-    function readFileAsync(file) {
+    // preferredSheetName: اسم الورقة المحفوظة مع القالب (إن وُجد)
+    function readFileAsync(file, preferredSheetName = null) {
       return new Promise((resolve, reject) => {
         let reader = new FileReader();
         reader.onerror = reject;
@@ -663,21 +1030,40 @@
             let data = new Uint8Array(e.target.result);
             let workbook = XLSX.read(data, { type: 'array' });
 
-            let targetSheet = workbook.Sheets[workbook.SheetNames[0]];
-            let checkData = XLSX.utils.sheet_to_json(targetSheet, { header: 1 });
+            let targetSheet = null;
+            let usedSheetName = null;
+            let sheetFound = false;
 
-            if (!checkData || checkData.length === 0 || checkData.every(row => row.length === 0)) {
-              for (let sName of workbook.SheetNames) {
-                let tempSheet = workbook.Sheets[sName];
-                let tempParsed = XLSX.utils.sheet_to_json(tempSheet, { header: 1 });
-                if (tempParsed && tempParsed.length > 0 && !tempParsed.every(row => row.length === 0)) {
-                  targetSheet = tempSheet;
-                  break;
+            if (preferredSheetName && workbook.Sheets[preferredSheetName]) {
+              // استخدام الورقة المحددة بالضبط باسمها
+              targetSheet = workbook.Sheets[preferredSheetName];
+              usedSheetName = preferredSheetName;
+              sheetFound = true;
+            } else {
+              // نفس السلوك القديم كخطة بديلة: أول ورقة، وإن كانت فارغة نبحث عن أول ورقة بها بيانات
+              usedSheetName = workbook.SheetNames[0];
+              targetSheet = workbook.Sheets[usedSheetName];
+              let checkData = XLSX.utils.sheet_to_json(targetSheet, { header: 1 });
+
+              if (!checkData || checkData.length === 0 || checkData.every(row => row.length === 0)) {
+                for (let sName of workbook.SheetNames) {
+                  let tempSheet = workbook.Sheets[sName];
+                  let tempParsed = XLSX.utils.sheet_to_json(tempSheet, { header: 1 });
+                  if (tempParsed && tempParsed.length > 0 && !tempParsed.every(row => row.length === 0)) {
+                    targetSheet = tempSheet;
+                    usedSheetName = sName;
+                    break;
+                  }
                 }
               }
             }
 
-            resolve(targetSheet);
+            resolve({
+              sheet: targetSheet,
+              sheetName: usedSheetName,
+              sheetFound,
+              sheetNames: workbook.SheetNames
+            });
           } catch (err) {
             reject(err);
           }
@@ -714,27 +1100,73 @@
       tbody.innerHTML = html;
     }
 
+    // ============= نسخ الجدول (محسّنة) =============
+    // تنسخ الجدول بصيغة TSV (مفصولة بـ Tab) مع صف العناوين، بحيث تلصق مباشرة في إكسيل / جوجل شيتس بأعمدة منظمة
+
     function copyMasterData() {
       if (masterData.length === 0) {
         alert('لا توجد بيانات لنسخها.');
         return;
       }
 
-      let tsvContent = "";
-      masterData.forEach((row, index) => {
-        let rowValues = masterColumns.map(mc => {
+      const headerRow = masterColumns.map(mc => mc.label).join('\t');
+      const dataRows = masterData.map(row =>
+        masterColumns.map(mc => {
           let val = row[mc.key] !== undefined && row[mc.key] !== null ? row[mc.key] : '';
-          return String(val).replace(/\t/g, " ");
-        });
-        tsvContent += rowValues.join("\t") + (index === masterData.length - 1 ? "" : "\n");
-      });
+          return String(val).replace(/\t/g, ' ').replace(/\r?\n/g, ' ');
+        }).join('\t')
+      );
+      const tsvContent = [headerRow, ...dataRows].join('\n');
 
-      navigator.clipboard.writeText(tsvContent).then(() => {
-        alert('تم نسخ البيانات بنجاح (بدون العناوين)! يمكنك لصقها مباشرة في إكسيل (Ctrl+V).');
-      }).catch(err => {
-        console.error('فشل النسخ: ', err);
-        alert('حدث خطأ أثناء نسخ البيانات.');
-      });
+      const showCopySuccess = () => {
+        const btn = document.getElementById('copy-table-btn');
+        if (!btn) return;
+        const originalText = btn.innerText;
+        btn.innerText = '✔ تم النسخ';
+        btn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+        btn.classList.add('bg-green-700', 'hover:bg-green-800');
+        setTimeout(() => {
+          btn.innerText = originalText;
+          btn.classList.remove('bg-green-700', 'hover:bg-green-800');
+          btn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+        }, 2000);
+      };
+
+      const showCopyFailure = () => {
+        alert('حدث خطأ أثناء نسخ البيانات، حاول مرة أخرى.');
+      };
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(tsvContent).then(showCopySuccess).catch(() => {
+          fallbackCopyToClipboard(tsvContent, showCopySuccess, showCopyFailure);
+        });
+      } else {
+        fallbackCopyToClipboard(tsvContent, showCopySuccess, showCopyFailure);
+      }
+    }
+
+    function fallbackCopyToClipboard(text, onSuccess, onFailure) {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.top = '0';
+      textarea.style.left = '0';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+          onSuccess();
+        } else {
+          onFailure();
+        }
+      } catch (err) {
+        onFailure();
+      } finally {
+        document.body.removeChild(textarea);
+      }
     }
 
     function exportMasterFile() {
